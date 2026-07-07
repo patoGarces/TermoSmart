@@ -53,3 +53,16 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# Especificos del proyecto
+/build/
+/managed_components/
+/dependencies.lock
+
+.vscode/
+.DS_Store
+
+sdkconfig.old
+
+*.pyc
+__pycache__/
