@@ -12,16 +12,12 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
-#include "mqtt_client.h"
+#include "HomeAssistant.h"
 
 #define ESP_WIFI_SSID_STA "WIFI2658"
 #define ESP_WIFI_PASS_STA "KO9604AL"
 
-#define MQTT_ADDRESS "mqtt://192.168.2.113:1883"
-
 QueueHandle_t networkStateQueueHandler;
-
-esp_mqtt_client_handle_t mqtt_client = NULL;
 
 static void networkStatusTask(void *pvParameters) {
     bool networkState = false, lastNetworkState = false;
@@ -37,31 +33,7 @@ static void networkStatusTask(void *pvParameters) {
     }
 }
 
-void MqttInit(void)
-{
-    const char *TAG = "mqttInit";
-    esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = MQTT_ADDRESS,
-    };
-
-    mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
-
-    ESP_ERROR_CHECK(esp_mqtt_client_start(mqtt_client));
-
-    esp_mqtt_client_publish(
-        mqtt_client,
-        "termosmart/test",
-        "Hola desde ESP32",
-        0,
-        1,
-        0
-    );
-
-    ESP_LOGI(TAG, "MQTT initialized");
-}
-
-void app_main(void)
-{
+void app_main(void) {
 
     networkStateQueueHandler = xQueueCreate(1, sizeof(bool));
     initWifi(ESP_WIFI_SSID_STA, ESP_WIFI_PASS_STA, WIFI_MODE_STA, networkStateQueueHandler);
@@ -76,8 +48,6 @@ void app_main(void)
 /********************* Demo *********************/
     dashboardInit();
 
-    MqttInit();
-
     // lv_demo_widgets();
     // lv_demo_keypad_encoder();
     // lv_demo_benchmark();
@@ -85,6 +55,10 @@ void app_main(void)
     // lv_demo_music();
 
     xTaskCreate(networkStatusTask,"network status tag", 4096, NULL, 4,NULL);;
+
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    homeAssistantInit();
 
     while (1) {
         // raise the task priority of LVGL and/or reduce the handler period can improve the performance

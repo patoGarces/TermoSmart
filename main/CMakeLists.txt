@@ -7,6 +7,8 @@ idf_component_register(
                               "SD_Card/SD_SPI.c"
                               "RGB/RGB.c"
                               "Wireless/WifiHandler.c"
+                              "MQTT/mqttClient.c"
+                              "HOME_ASSISTANT/HomeAssistant.c"
 
                          INCLUDE_DIRS 
                               "./LCD_Driver/Vernon_ST7789T" 
@@ -16,5 +18,7 @@ idf_component_register(
                               "./SD_Card"
                               "./RGB" 
                               "./Wireless"
+                              "./MQTT"
+                              "./HOME_ASSISTANT"
                               "."
                        )
