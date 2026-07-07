@@ -1,4 +1,4 @@
-#include "LVGL_Example.h"
+#include "Dashboard.h"
 
 /**********************
  *      TYPEDEFS
@@ -15,7 +15,7 @@ typedef enum {
 static void Onboard_create(lv_obj_t * parent);
 
 static void ta_event_cb(lv_event_t * e);
-void example1_increase_lvgl_tick(lv_timer_t * t);
+void dashboard_increase_lvgl_tick(lv_timer_t * t);
 /**********************
  *  STATIC VARIABLES
  **********************/
@@ -54,7 +54,7 @@ void IRAM_ATTR auto_switch(lv_timer_t * t)
     lv_tabview_set_act(tv, 2, LV_ANIM_ON); 
   }
 }
-void Lvgl_Example1(void){
+void dashboardInit(void){
 
   disp_size = DISP_SMALL;                            
 
@@ -95,10 +95,8 @@ void Lvgl_Example1(void){
 
   lv_obj_t * t1 = lv_tabview_add_tab(tv, "Onboard");
   
-  
+
   Onboard_create(t1);
-  
-  
 }
 
 void Lvgl_Example1_close(void)
@@ -215,10 +213,10 @@ static void Onboard_create(lv_obj_t * parent)
 
   // 器件布局 END
   
-  auto_step_timer = lv_timer_create(example1_increase_lvgl_tick, 100, NULL);
+  auto_step_timer = lv_timer_create(dashboard_increase_lvgl_tick, 100, NULL);
 }
 
-void example1_increase_lvgl_tick(lv_timer_t * t)
+void dashboard_increase_lvgl_tick(lv_timer_t * t)
 {
   char buf[100]={0}; 
   
@@ -226,12 +224,6 @@ void example1_increase_lvgl_tick(lv_timer_t * t)
   lv_textarea_set_placeholder_text(SD_Size, buf);
   snprintf(buf, sizeof(buf), "%ld MB\r\n", Flash_Size);
   lv_textarea_set_placeholder_text(FlashSize, buf);
-  if(Scan_finish)
-    snprintf(buf, sizeof(buf), "W: %d  B: %d    OK.\r\n",WIFI_NUM,BLE_NUM);
-    // snprintf(buf, sizeof(buf), "WIFI: %d     ..OK.\r\n",WIFI_NUM);
-  else
-    snprintf(buf, sizeof(buf), "W: %d  B: %d\r\n",WIFI_NUM,BLE_NUM);
-    // snprintf(buf, sizeof(buf), "WIFI: %d  \r\n",WIFI_NUM);
   lv_textarea_set_placeholder_text(Wireless_Scan, buf);
 }
 
