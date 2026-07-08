@@ -27,6 +27,11 @@ static void networkStatusTask(void *pvParameters) {
         xQueuePeek(networkStateQueueHandler, &networkState, 0);
         if (networkState != lastNetworkState) {
             ESP_LOGI(TAG, "Nuevo estado de conexion wifi: %s", networkState ? "Conectado" : "Desconectado");
+
+            if (networkState) {
+                homeAssistantInit();
+            }
+
             lastNetworkState = networkState;
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -55,10 +60,6 @@ void app_main(void) {
     // lv_demo_music();
 
     xTaskCreate(networkStatusTask,"network status tag", 4096, NULL, 4,NULL);;
-
-
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    homeAssistantInit();
 
     while (1) {
         // raise the task priority of LVGL and/or reduce the handler period can improve the performance
