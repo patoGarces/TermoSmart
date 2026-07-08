@@ -10,3 +10,7 @@
 
 
 void dashboardInit(void);
+void updateDashboardTemp(float newTemp);
+void updateDashboardWifiStatus(bool connected);
+void updateDashboardMqttStatus(bool connected);
+void updateDashboardRelayStatus(bool on);

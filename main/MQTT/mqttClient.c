@@ -38,13 +38,11 @@ static void mqttEventHandler(void *handler_args, esp_event_base_t base, int32_t 
         ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
         break;
     case MQTT_EVENT_PUBLISHED:
-        ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+        // ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
         break;
     case MQTT_EVENT_DATA:
         ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-        printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-        printf("DATA=%.*s\r\n", event->data_len, event->data);
-
+        ESP_LOGI(TAG, "NEW MESSAGE -> Topic=%.*s\tData=%.*s", event->topic_len, event->topic, event->data_len, event->data);
         mqtt_message_t msg = {0};
         snprintf(msg.topic, sizeof(msg.topic),
                 "%.*s", event->topic_len, event->topic);
@@ -71,7 +69,7 @@ static void mqttEventHandler(void *handler_args, esp_event_base_t base, int32_t 
 }
 
 void mqttPublishTopic(char *topic, char *message, bool isRetained) {
-        esp_mqtt_client_publish(mqtt_client, topic, message, 0, 1, isRetained);
+    esp_mqtt_client_publish(mqtt_client, topic, message, 0, 1, isRetained);
 }
 
 

@@ -1,5 +1,9 @@
 #include "Dashboard.h"
 
+
+#define TEMP_COLOR_OFF  lv_color_hex(0x1565C0)
+#define TEMP_COLOR_ON   lv_color_hex(0xC62828)
+
 /**********************
  *      TYPEDEFS
  **********************/
@@ -14,8 +18,7 @@ typedef enum {
  **********************/
 static void Onboard_create(lv_obj_t * parent);
 
-static void ta_event_cb(lv_event_t * e);
-void dashboard_increase_lvgl_tick(lv_timer_t * t);
+// void dashboard_increase_lvgl_tick(lv_timer_t * t);
 /**********************
  *  STATIC VARIABLES
  **********************/
@@ -24,25 +27,28 @@ static disp_size_t disp_size;
 static lv_obj_t * tv;
 lv_style_t style_text_muted;
 lv_style_t style_title;
-static lv_style_t style_icon;
 static lv_style_t style_bullet;
+static lv_style_t style_temp;
 
+lv_obj_t *wifiLabel;
+lv_obj_t *mqttLabel;
 
+static lv_style_t style_status_ok;
+static lv_style_t style_status_error;
+static lv_style_t style_status_normal;
 
 static const lv_font_t * font_large;
 static const lv_font_t * font_normal;
-
-static lv_timer_t * auto_step_timer;
+static const lv_font_t * font_temp;
 
 static lv_timer_t * meter2_timer;
 
-lv_obj_t * SD_Size;
+lv_obj_t * tempCard;
+lv_obj_t * TempValue;
 lv_obj_t * FlashSize;
 lv_obj_t * Board_angle;
 lv_obj_t * RTC_Time;
 lv_obj_t * Wireless_Scan;
-
-
 
 void IRAM_ATTR auto_switch(lv_timer_t * t)
 {
@@ -54,15 +60,61 @@ void IRAM_ATTR auto_switch(lv_timer_t * t)
     lv_tabview_set_act(tv, 2, LV_ANIM_ON); 
   }
 }
-void dashboardInit(void){
 
+void updateTabColor(bool heating)
+{
+    lv_obj_t * tab_bar = lv_obj_get_child(tv, 0);
+
+    lv_color_t color = heating
+        ? lv_color_hex(0xD32F2F)   // rojo calentando
+        : TEMP_COLOR_OFF;          // azul apagado
+
+    lv_obj_set_style_bg_color(
+      tab_bar,
+      color,
+      LV_PART_ITEMS | LV_STATE_CHECKED
+    );
+
+    lv_obj_set_style_border_color(
+      tab_bar,
+      color,
+      LV_PART_ITEMS | LV_STATE_CHECKED
+    );
+
+    lv_obj_set_style_border_width(
+      tab_bar,
+      2,
+      LV_PART_ITEMS | LV_STATE_CHECKED
+    );
+
+    lv_obj_set_style_text_color(
+      tab_bar,
+      lv_color_white(),
+      LV_PART_ITEMS
+    );
+
+    lv_obj_set_style_text_color(
+      tab_bar,
+      lv_color_white(),
+      LV_PART_ITEMS | LV_STATE_CHECKED
+    );
+}
+
+void dashboardInit(void) {
   disp_size = DISP_SMALL;                            
 
   font_large = LV_FONT_DEFAULT;                             
-  font_normal = LV_FONT_DEFAULT;                         
+  font_normal = LV_FONT_DEFAULT;    
+  font_temp = LV_FONT_DEFAULT;                     
   
   lv_coord_t tab_h;
   tab_h = 45;
+
+  #if LV_FONT_MONTSERRAT_44
+    font_temp     = &lv_font_montserrat_44;
+  #else
+    LV_LOG_WARN("LV_FONT_MONTSERRAT_48 is not enabled for the widgets demo. Using LV_FONT_DEFAULT instead.");
+  #endif
   #if LV_FONT_MONTSERRAT_18
     font_large     = &lv_font_montserrat_18;
   #else
@@ -79,28 +131,30 @@ void dashboardInit(void){
 
   lv_style_init(&style_title);
   lv_style_set_text_font(&style_title, font_large);
-
-  lv_style_init(&style_icon);
-  lv_style_set_text_color(&style_icon, lv_theme_get_color_primary(NULL));
-  lv_style_set_text_font(&style_icon, font_large);
+  lv_style_set_text_color(&style_title, lv_color_white());
 
   lv_style_init(&style_bullet);
   lv_style_set_border_width(&style_bullet, 0);
   lv_style_set_radius(&style_bullet, LV_RADIUS_CIRCLE);
 
+  lv_style_init(&style_temp);
+  lv_style_set_text_font(&style_temp, font_temp);
+  lv_style_set_text_color(&style_temp, lv_color_white());
+
   tv = lv_tabview_create(lv_scr_act(), LV_DIR_TOP, tab_h);
 
-  lv_obj_set_style_text_font(lv_scr_act(), font_normal, 0);
+  lv_obj_set_style_text_font(lv_scr_act(), font_large, 0);
 
+  lv_obj_t * t1 = lv_tabview_add_tab(tv, "TermoSmart");
+  lv_obj_set_style_bg_color(tv, lv_color_black(), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(tv, LV_OPA_COVER, LV_PART_MAIN);
 
-  lv_obj_t * t1 = lv_tabview_add_tab(tv, "Onboard");
+  updateTabColor(false);  // relay OFF
   
-
   Onboard_create(t1);
 }
 
-void Lvgl_Example1_close(void)
-{
+void Lvgl_Example1_close(void) {
   /*Delete all animation*/
   lv_anim_del(NULL, NULL);
 
@@ -111,127 +165,133 @@ void Lvgl_Example1_close(void)
 
   lv_style_reset(&style_text_muted);
   lv_style_reset(&style_title);
-  lv_style_reset(&style_icon);
   lv_style_reset(&style_bullet);
+  lv_style_reset(&style_temp);
 }
-
 
 /**********************
 *   STATIC FUNCTIONS
 **********************/
 
-static void Onboard_create(lv_obj_t * parent)
-{
+static void Onboard_create(lv_obj_t * parent) {
 
-  /*Create a panel*/
-  lv_obj_t * panel1 = lv_obj_create(parent);
-  lv_obj_set_height(panel1, LV_SIZE_CONTENT);
+    tempCard = lv_obj_create(parent);
+    lv_obj_set_size(tempCard, 140, 100);
 
-  lv_obj_t * panel1_title = lv_label_create(panel1);
-  lv_label_set_text(panel1_title, "Onboard parameter");
-  lv_obj_add_style(panel1_title, &style_title, 0);
+    lv_obj_set_style_bg_color(tempCard, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(tempCard, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(tempCard, 2, 0);
+    lv_obj_set_style_radius(tempCard, 8, 0);
 
-  lv_obj_t * SD_label = lv_label_create(panel1);
-  lv_label_set_text(SD_label, "SD Card");
-  lv_obj_add_style(SD_label, &style_text_muted, 0);
+    lv_obj_set_style_pad_all(tempCard, 5, 0);
 
-  SD_Size = lv_textarea_create(panel1);
-  lv_textarea_set_one_line(SD_Size, true);
-  lv_textarea_set_placeholder_text(SD_Size, "SD Size");
-  lv_obj_add_event_cb(SD_Size, ta_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_clear_flag(tempCard, LV_OBJ_FLAG_SCROLLABLE);
 
-  lv_obj_t * Flash_label = lv_label_create(panel1);
-  lv_label_set_text(Flash_label, "Flash Size");
-  lv_obj_add_style(Flash_label, &style_text_muted, 0);
+    TempValue = lv_label_create(tempCard);
+    lv_obj_set_width(TempValue, 100);
+    lv_label_set_text(TempValue, "--");
+    lv_obj_add_style(TempValue, &style_temp, 0);
+    lv_obj_set_style_text_align(TempValue, LV_TEXT_ALIGN_CENTER, 0);
 
-  FlashSize = lv_textarea_create(panel1);
-  lv_textarea_set_one_line(FlashSize, true);
-  lv_textarea_set_placeholder_text(FlashSize, "Flash Size");
-  lv_obj_add_event_cb(FlashSize, ta_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_t *tempCelsiusLabel = lv_label_create(tempCard);
+    lv_label_set_text(tempCelsiusLabel, "°C");
+    lv_obj_add_style(tempCelsiusLabel, &style_title, 0);
+    lv_obj_set_style_translate_y(tempCelsiusLabel, -8, 0);
 
-  lv_obj_t * Wireless_label = lv_label_create(panel1);
-  lv_label_set_text(Wireless_label, "Wireless scan");
-  lv_obj_add_style(Wireless_label, &style_text_muted, 0);
+    lv_obj_set_flex_flow(tempCard, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(
+        tempCard,
+        LV_FLEX_ALIGN_CENTER,
+        LV_FLEX_ALIGN_CENTER,
+        LV_FLEX_ALIGN_CENTER
+    );
 
-  Wireless_Scan = lv_textarea_create(panel1);
-  lv_textarea_set_one_line(Wireless_Scan, true);
-  lv_textarea_set_placeholder_text(Wireless_Scan, "Wireless number");
-  lv_obj_add_event_cb(Wireless_Scan, ta_event_cb, LV_EVENT_ALL, NULL);
-
-  // 器件布局
-  static lv_coord_t grid_main_col_dsc[] = {LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
-  static lv_coord_t grid_main_row_dsc[] = {LV_GRID_CONTENT, LV_GRID_CONTENT, LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
-  lv_obj_set_grid_dsc_array(parent, grid_main_col_dsc, grid_main_row_dsc);
+    lv_obj_set_style_pad_column(tempCard, 4, 0);
 
 
-  /*Create the top panel*/
-  static lv_coord_t grid_1_col_dsc[] = {LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
-  static lv_coord_t grid_1_row_dsc[] = {LV_GRID_CONTENT, /*Avatar*/
-                                        LV_GRID_CONTENT, /*Name*/
-                                        LV_GRID_CONTENT, /*Description*/
-                                        LV_GRID_CONTENT, /*Email*/
-                                        LV_GRID_CONTENT, /*Phone number*/
-                                        LV_GRID_CONTENT, /*Button1*/
-                                        LV_GRID_CONTENT, /*Button2*/
-                                        LV_GRID_TEMPLATE_LAST
-                                        };
+    lv_style_init(&style_status_ok);
+    lv_style_set_text_color(&style_status_ok, lv_color_hex(0x00FF00));
 
-  lv_obj_set_grid_dsc_array(panel1, grid_1_col_dsc, grid_1_row_dsc);
+    lv_style_init(&style_status_error);
+    lv_style_set_text_color(&style_status_error, lv_color_hex(0xFF0000));
+
+    lv_style_init(&style_status_normal);
+    lv_style_set_text_color(&style_status_normal, lv_color_white());
 
 
-  static lv_coord_t grid_2_col_dsc[] = {LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
-  static lv_coord_t grid_2_row_dsc[] = {
-    LV_GRID_CONTENT,  /*Title*/
-    5,                /*Separator*/
-    LV_GRID_CONTENT,  /*Box title*/
-    40,               /*Box*/
-    LV_GRID_CONTENT,  /*Box title*/
-    40,               /*Box*/
-    LV_GRID_CONTENT,  /*Box title*/
-    40,               /*Box*/
-    LV_GRID_CONTENT,  /*Box title*/
-    40,               /*Box*/
-    LV_GRID_CONTENT,  /*Box title*/
-    40,               /*Box*/
-    LV_GRID_CONTENT,  /*Box title*/
-    40,               /*Box*/
-    LV_GRID_TEMPLATE_LAST               
-  };
+    wifiLabel = lv_label_create(parent);
+    lv_label_set_text(wifiLabel, "WiFi: --");
+    lv_obj_add_style(wifiLabel, &style_status_normal, 0);
 
-  // lv_obj_set_grid_dsc_array(panel2, grid_2_col_dsc, grid_2_row_dsc);
-  // lv_obj_set_grid_dsc_array(panel3, grid_2_col_dsc, grid_2_row_dsc);
 
-  lv_obj_set_grid_cell(panel1, LV_GRID_ALIGN_STRETCH, 0, 1, LV_GRID_ALIGN_START, 0, 1);
-  lv_obj_set_grid_dsc_array(panel1, grid_2_col_dsc, grid_2_row_dsc);
-  lv_obj_set_grid_cell(panel1_title, LV_GRID_ALIGN_START, 0, 1, LV_GRID_ALIGN_CENTER, 0, 1);
-  lv_obj_set_grid_cell(SD_label, LV_GRID_ALIGN_START, 0, 1, LV_GRID_ALIGN_START, 2, 1);
-  lv_obj_set_grid_cell(SD_Size, LV_GRID_ALIGN_STRETCH, 0, 1, LV_GRID_ALIGN_CENTER, 3, 1);
-  lv_obj_set_grid_cell(Flash_label, LV_GRID_ALIGN_START, 0, 1, LV_GRID_ALIGN_START, 4, 1);
-  lv_obj_set_grid_cell(FlashSize, LV_GRID_ALIGN_STRETCH, 0, 1, LV_GRID_ALIGN_CENTER, 5, 1);
-  lv_obj_set_grid_cell(Wireless_label, LV_GRID_ALIGN_START, 0, 1, LV_GRID_ALIGN_START, 6, 1);
-  lv_obj_set_grid_cell(Wireless_Scan, LV_GRID_ALIGN_STRETCH, 0, 1, LV_GRID_ALIGN_CENTER, 7, 1);
+    mqttLabel = lv_label_create(parent);
+    lv_label_set_text(mqttLabel, "MQTT: --");
+    lv_obj_add_style(mqttLabel, &style_status_normal, 0);
 
-  // 器件布局 END
-  
-  auto_step_timer = lv_timer_create(dashboard_increase_lvgl_tick, 100, NULL);
+    static lv_coord_t col_dsc[] = {
+        LV_GRID_FR(1),
+        LV_GRID_TEMPLATE_LAST
+    };
+
+    static lv_coord_t row_dsc[] = {
+      LV_GRID_CONTENT, // header
+      LV_GRID_FR(1),   // espacio disponible para temperatura
+      LV_GRID_CONTENT, // wifi
+      LV_GRID_CONTENT, // mqtt
+      LV_GRID_TEMPLATE_LAST
+    };
+
+    lv_obj_set_grid_dsc_array(parent, col_dsc, row_dsc);
+
+    // temperatura centrada arriba
+    lv_obj_set_grid_cell(
+        tempCard,
+        LV_GRID_ALIGN_CENTER, 0, 1,
+        LV_GRID_ALIGN_CENTER, 1, 1
+    );
+
+    // estados abajo
+    lv_obj_set_grid_cell(
+        wifiLabel,
+        LV_GRID_ALIGN_CENTER, 0, 1,
+        LV_GRID_ALIGN_CENTER, 2, 1
+    );
+
+    lv_obj_set_grid_cell(
+        mqttLabel,
+        LV_GRID_ALIGN_CENTER, 0, 1,
+        LV_GRID_ALIGN_CENTER, 3, 1
+    );
 }
 
-void dashboard_increase_lvgl_tick(lv_timer_t * t)
-{
-  char buf[100]={0}; 
-  
-  snprintf(buf, sizeof(buf), "%ld MB\r\n", SDCard_Size);
-  lv_textarea_set_placeholder_text(SD_Size, buf);
-  snprintf(buf, sizeof(buf), "%ld MB\r\n", Flash_Size);
-  lv_textarea_set_placeholder_text(FlashSize, buf);
-  lv_textarea_set_placeholder_text(Wireless_Scan, buf);
+void updateDashboardTemp(float newTemp) {
+    char buf[100]={0}; 
+    snprintf(buf, sizeof(buf), "%.1f", newTemp);
+    lv_label_set_text(TempValue, buf);
 }
 
-static void ta_event_cb(lv_event_t * e)
-{
+void updateDashboardWifiStatus(bool connected) {
+    lv_label_set_text(wifiLabel, connected ? "WiFi: OK" : "WiFi: OFF");
+
+    lv_obj_remove_style(wifiLabel, &style_status_ok, 0);
+    lv_obj_remove_style(wifiLabel, &style_status_error, 0);
+
+    lv_obj_add_style(wifiLabel,
+        connected ? &style_status_ok : &style_status_error, 0);
 }
 
+void updateDashboardMqttStatus(bool connected) {
+    lv_label_set_text(mqttLabel, connected ? "MQTT: OK" : "MQTT: OFF");
 
+    lv_obj_remove_style(mqttLabel, &style_status_ok, 0);
+    lv_obj_remove_style(mqttLabel, &style_status_error, 0);
 
+    lv_obj_add_style(mqttLabel,
+        connected ? &style_status_ok : &style_status_error, 0);
+}
 
-
+void updateDashboardRelayStatus(bool on) {
+    lv_color_t background = on ? TEMP_COLOR_ON : TEMP_COLOR_OFF;
+    lv_obj_set_style_bg_color(tempCard, background, 0);
+    updateTabColor(on);
+}

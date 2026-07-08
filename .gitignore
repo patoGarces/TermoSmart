@@ -58,6 +58,7 @@ dkms.conf
 /build/
 /managed_components/
 /dependencies.lock
+/main/secrets.h
 
 .vscode/
 .DS_Store

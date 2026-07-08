@@ -1,13 +1,10 @@
 #include "HomeAssistant.h"
 #include "mqttClient.h"
 #include "stdio.h"
-#include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/queue.h"
 #include "esp_log.h"
 #include "string.h"
-
-#define MQTT_ADDRESS "mqtt://192.168.2.113:1883"
+#include "secrets.h"
 
 #define TEMP_TOPIC_CONFIG "homeassistant/sensor/termosmart_temperature/config"
 #define TEMP_TOPIC_VALUE  "termosmart/temperature"
@@ -17,6 +14,8 @@
 #define POWER_TOPIC_SET    "termosmart/power/set"
 
 static const char *TAG = "HomeAssistant";
+
+static QueueHandle_t actualTermoStateQueue;
 
 static const char *temperature_discovery =
         "{"
@@ -40,6 +39,7 @@ static const char *switch_discovery =
     "\"unique_id\":\"termosmart_power\","
     "\"state_topic\":\"termosmart/power/state\","
     "\"command_topic\":\"termosmart/power/set\","
+    "\"retain\":\"true\","
     "\"payload_on\":\"ON\","
     "\"payload_off\":\"OFF\","
     "\"device\":{"
@@ -51,7 +51,7 @@ static const char *switch_discovery =
     "}";
 
 
-static void sendUpdateTemp(float actualTemp) {
+void updateHATemp(float actualTemp) {
 
     char actualTempChar[6];
     snprintf(actualTempChar, sizeof(actualTempChar), "%.2f", actualTemp);
@@ -63,17 +63,15 @@ static void sendUpdateTemp(float actualTemp) {
     );
 }
 
-void sendUpdateStatePower(bool isPowerOn) {    
+void updateHAStatePower(bool isPowerOn) {    
     mqttPublishTopic(
         POWER_TOPIC_STATE,
         isPowerOn ? "ON" : "OFF",
-        false
+        true
     );
 }
 
 static void homeAssistantUpdate(void *pvParameters) {
-
-    float actualTemp = 10.0;
     bool isReleOn = false;
     bool isMqttConnectionState = false, lastMqttConnectionState = false;
 
@@ -99,10 +97,6 @@ static void homeAssistantUpdate(void *pvParameters) {
                         switch_discovery,
                         true
                     );
-
-
-                    sendUpdateTemp(12.5);
-
                     mqttSuscribeTopic(POWER_TOPIC_SET, 1);
                 }
             }
@@ -113,17 +107,18 @@ static void homeAssistantUpdate(void *pvParameters) {
             if (strcmp(newMessage.topic, POWER_TOPIC_SET) == 0) {
                 isReleOn = strcmp(newMessage.payload, "ON") == 0;
                 ESP_LOGI(TAG, "TENGO QUE CAMBIAR EL ESTADO DEL RELE A: %d", isReleOn);
+
+                xQueueSend(actualTermoStateQueue, &isReleOn, 0);
             }
         }
-        sendUpdateTemp(actualTemp);
-        sendUpdateStatePower(isReleOn);
-        actualTemp += 0.1;
+        updateHAStatePower(isReleOn);
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
-void homeAssistantInit() {
+void homeAssistantInit(QueueHandle_t updateTermoStateQueue) {
 
+    actualTermoStateQueue = updateTermoStateQueue;
     static mqtt_context_t mqttContext;
     mqttContext.connectionQueue = xQueueCreate(1, sizeof(bool));
     mqttContext.mqttMessageQueue = xQueueCreate(10, sizeof(mqtt_message_t));
