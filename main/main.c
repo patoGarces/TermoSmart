@@ -15,6 +15,7 @@
 #include "HomeAssistant.h"
 #include "secrets.h"
 #include "driver/gpio.h"
+#include "TemperatureTermo.h"
 
 #define GPIO_SWITCH     2
 
@@ -57,6 +58,7 @@ static void updateSystemStatus(void *pvParameters) {
             setSwitchStateOutput(termoState);
         }
 
+        actualTemp = getTermoTemp();
         updateHATemp(actualTemp);
         updateDashboardTemp(actualTemp);
         actualTemp += 0.1;
@@ -90,6 +92,8 @@ void app_main(void) {
     LVGL_Init();                            // returns the screen object
 
     dashboardInit();
+
+    temperatureTermoInit(GPIO_NUM_1);
 
     xTaskCreate(networkStatusTask,"network status task", 4096, NULL, 4,NULL);;
     xTaskCreate(updateSystemStatus,"update system status", 4096, NULL, 4,NULL);;

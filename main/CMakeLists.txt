@@ -9,6 +9,7 @@ idf_component_register(
                               "Wireless/WifiHandler.c"
                               "MQTT/mqttClient.c"
                               "HOME_ASSISTANT/HomeAssistant.c"
+                              "SENSORS/TemperatureTermo.c"
 
                          INCLUDE_DIRS 
                               "./LCD_Driver/Vernon_ST7789T" 
@@ -20,5 +21,6 @@ idf_component_register(
                               "./Wireless"
                               "./MQTT"
                               "./HOME_ASSISTANT"
+                              "./SENSORS"
                               "."
                        )

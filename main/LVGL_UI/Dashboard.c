@@ -1,6 +1,5 @@
 #include "Dashboard.h"
 
-
 #define TEMP_COLOR_OFF  lv_color_hex(0x1565C0)
 #define TEMP_COLOR_ON   lv_color_hex(0xC62828)
 
@@ -25,7 +24,6 @@ static void Onboard_create(lv_obj_t * parent);
 static disp_size_t disp_size;
 
 static lv_obj_t * tv;
-lv_style_t style_text_muted;
 lv_style_t style_title;
 static lv_style_t style_bullet;
 static lv_style_t style_temp;
@@ -44,11 +42,8 @@ static const lv_font_t * font_temp;
 static lv_timer_t * meter2_timer;
 
 lv_obj_t * tempCard;
-lv_obj_t * TempValue;
-lv_obj_t * FlashSize;
-lv_obj_t * Board_angle;
-lv_obj_t * RTC_Time;
-lv_obj_t * Wireless_Scan;
+lv_obj_t * tempValue;
+lv_obj_t * tempDecimalsLabel;
 
 void IRAM_ATTR auto_switch(lv_timer_t * t)
 {
@@ -66,7 +61,7 @@ void updateTabColor(bool heating)
     lv_obj_t * tab_bar = lv_obj_get_child(tv, 0);
 
     lv_color_t color = heating
-        ? lv_color_hex(0xD32F2F)   // rojo calentando
+        ? TEMP_COLOR_ON            // rojo calentando
         : TEMP_COLOR_OFF;          // azul apagado
 
     lv_obj_set_style_bg_color(
@@ -110,8 +105,8 @@ void dashboardInit(void) {
   lv_coord_t tab_h;
   tab_h = 45;
 
-  #if LV_FONT_MONTSERRAT_44
-    font_temp     = &lv_font_montserrat_44;
+  #if LV_FONT_MONTSERRAT_48
+    font_temp     = &lv_font_montserrat_48;
   #else
     LV_LOG_WARN("LV_FONT_MONTSERRAT_48 is not enabled for the widgets demo. Using LV_FONT_DEFAULT instead.");
   #endif
@@ -125,9 +120,6 @@ void dashboardInit(void) {
   #else
     LV_LOG_WARN("LV_FONT_MONTSERRAT_12 is not enabled for the widgets demo. Using LV_FONT_DEFAULT instead.");
   #endif
-  
-  lv_style_init(&style_text_muted);
-  lv_style_set_text_opa(&style_text_muted, LV_OPA_90);
 
   lv_style_init(&style_title);
   lv_style_set_text_font(&style_title, font_large);
@@ -163,7 +155,6 @@ void Lvgl_Example1_close(void) {
 
   lv_obj_clean(lv_scr_act());
 
-  lv_style_reset(&style_text_muted);
   lv_style_reset(&style_title);
   lv_style_reset(&style_bullet);
   lv_style_reset(&style_temp);
@@ -187,16 +178,16 @@ static void Onboard_create(lv_obj_t * parent) {
 
     lv_obj_clear_flag(tempCard, LV_OBJ_FLAG_SCROLLABLE);
 
-    TempValue = lv_label_create(tempCard);
-    lv_obj_set_width(TempValue, 100);
-    lv_label_set_text(TempValue, "--");
-    lv_obj_add_style(TempValue, &style_temp, 0);
-    lv_obj_set_style_text_align(TempValue, LV_TEXT_ALIGN_CENTER, 0);
+    tempValue = lv_label_create(tempCard);
+    lv_obj_set_width(tempValue, 70);
+    lv_label_set_text(tempValue, "--");
+    lv_obj_add_style(tempValue, &style_temp, 0);
+    lv_obj_set_style_text_align(tempValue, LV_TEXT_ALIGN_RIGHT, 0);
 
-    lv_obj_t *tempCelsiusLabel = lv_label_create(tempCard);
-    lv_label_set_text(tempCelsiusLabel, "°C");
-    lv_obj_add_style(tempCelsiusLabel, &style_title, 0);
-    lv_obj_set_style_translate_y(tempCelsiusLabel, -8, 0);
+    tempDecimalsLabel = lv_label_create(tempCard);
+    lv_label_set_text(tempDecimalsLabel, ".-°C");
+    lv_obj_add_style(tempDecimalsLabel, &style_title, 0);
+    lv_obj_set_style_translate_y(tempDecimalsLabel, -8, 0);
 
     lv_obj_set_flex_flow(tempCard, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(
@@ -206,8 +197,7 @@ static void Onboard_create(lv_obj_t * parent) {
         LV_FLEX_ALIGN_CENTER
     );
 
-    lv_obj_set_style_pad_column(tempCard, 4, 0);
-
+    lv_obj_set_style_pad_column(tempCard, 6, 0);            // margen entre labels de temperatura
 
     lv_style_init(&style_status_ok);
     lv_style_set_text_color(&style_status_ok, lv_color_hex(0x00FF00));
@@ -266,8 +256,11 @@ static void Onboard_create(lv_obj_t * parent) {
 
 void updateDashboardTemp(float newTemp) {
     char buf[100]={0}; 
-    snprintf(buf, sizeof(buf), "%.1f", newTemp);
-    lv_label_set_text(TempValue, buf);
+    snprintf(buf, sizeof(buf), "%d", (uint8_t)newTemp);
+    lv_label_set_text(tempValue, buf);
+
+    snprintf(buf, sizeof(buf), ".%d°C", ((int)(newTemp * 10)) % 10);
+    lv_label_set_text(tempDecimalsLabel, buf);
 }
 
 void updateDashboardWifiStatus(bool connected) {
@@ -276,8 +269,7 @@ void updateDashboardWifiStatus(bool connected) {
     lv_obj_remove_style(wifiLabel, &style_status_ok, 0);
     lv_obj_remove_style(wifiLabel, &style_status_error, 0);
 
-    lv_obj_add_style(wifiLabel,
-        connected ? &style_status_ok : &style_status_error, 0);
+    lv_obj_add_style(wifiLabel, connected ? &style_status_ok : &style_status_error, 0);
 }
 
 void updateDashboardMqttStatus(bool connected) {
