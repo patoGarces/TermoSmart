@@ -20,14 +20,28 @@
 #define GPIO_SWITCH     2
 
 QueueHandle_t networkStateQueue;
+QueueHandle_t mqttStateQueue;
 QueueHandle_t updateRelayStateQueue;
 
 static void setSwitchStateOutput(bool state) {
     gpio_set_level(GPIO_SWITCH, state);
 }
 
+static uint8_t tempToPercent(float temp) {
+    const float minTemp = 20.0f;
+    const float maxTemp = 60.0f;
+
+    if (temp <= minTemp)
+        return 0;
+
+    if (temp >= maxTemp)
+        return 100;
+
+    return (uint8_t)(((temp - minTemp) * 100.0f) / (maxTemp - minTemp));
+}
+
 static void networkStatusTask(void *pvParameters) {
-    bool networkState = false, lastNetworkState = false;
+    bool networkState = false, lastNetworkState = false, mqttState = false, lastMqttState = false;
     const char *TAG = "networkStatus";
 
     while(1) {
@@ -36,10 +50,18 @@ static void networkStatusTask(void *pvParameters) {
             ESP_LOGI(TAG, "Nuevo estado de conexion wifi: %s", networkState ? "Conectado" : "Desconectado");
 
             if (networkState) {
-                homeAssistantInit(updateRelayStateQueue);
+                homeAssistantInit(updateRelayStateQueue, mqttStateQueue);
             }
             updateDashboardWifiStatus(networkState);
             lastNetworkState = networkState;
+        }
+
+        xQueuePeek(mqttStateQueue, &mqttState, 0);
+        if (mqttState != lastMqttState) {
+            ESP_LOGI(TAG, "Nuevo estado de conexion mqtt: %s", mqttState ? "Conectado" : "Desconectado");
+
+            updateDashboardMqttStatus(mqttState);
+            lastMqttState = mqttState;
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -49,6 +71,7 @@ static void updateSystemStatus(void *pvParameters) {
     bool termoState = false;
     float actualTemp = 0.00;
     const char *TAG = "updateSystemStatus";
+    TickType_t xLastWakeTime = xTaskGetTickCount();
 
     while(1) {
         if (xQueueReceive(updateRelayStateQueue, &termoState, 0)) {
@@ -61,9 +84,21 @@ static void updateSystemStatus(void *pvParameters) {
         actualTemp = getTermoTemp();
         updateHATemp(actualTemp);
         updateDashboardTemp(actualTemp);
-        actualTemp += 0.1;
+
+        rgb_t tempColor = convertTempPercentToRgb(tempToPercent(actualTemp));
+        setRgb(tempColor.r, tempColor.g, tempColor.b);
+
+        if (actualTemp < 40.0f) {
+            updateDashboardTempColor(TEMP_COLOR_COLD);
+        }
+        else if (actualTemp <= 47.0f) {
+            updateDashboardTempColor(TEMP_COLOR_WARM);
+        }
+        else {
+            updateDashboardTempColor(TEMP_COLOR_HOT);
+        }
         
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000));
     }
 }
 
@@ -81,11 +116,11 @@ void app_main(void) {
     // Queues create
     updateRelayStateQueue = xQueueCreate(1, sizeof(bool));
     networkStateQueue = xQueueCreate(1, sizeof(bool));
+    mqttStateQueue = xQueueCreate(1, sizeof(bool));
 
     initWifi(ESP_WIFI_SSID_STA, ESP_WIFI_PASS_STA, WIFI_MODE_STA, networkStateQueue);
     Flash_Searching();
-    RGB_Init();
-    RGB_Example();
+    initRgb();
     SD_Init();                              // SD must be initialized behind the LCD
     LCD_Init();
     BK_Light(50);

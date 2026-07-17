@@ -217,6 +217,10 @@ void wifi_init_sta(QueueHandle_t networkStateQueueHandler, const char *ssidRed, 
     }
 }
 
+void disconnectWifi() {
+    esp_wifi_disconnect();
+}
+
 void initWifi(char *ssidRed, char *passRed, wifi_mode_t wifiMode, QueueHandle_t networkStateQueueHandler) {
 
     esp_err_t ret = nvs_flash_init();

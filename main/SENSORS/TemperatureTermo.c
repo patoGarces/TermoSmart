@@ -19,7 +19,7 @@ float getTermoTemp() {
 
     ds18b20_read_temperature(gpioSensor, DS18X20_ANY, &actualTemp);
 
-    ESP_LOGI("TAG", "Temperatura: %.2f °C", actualTemp);
+    ESP_LOGI(TAG, "Temperatura: %.2f °C", actualTemp);
 
     return actualTemp; 
 }

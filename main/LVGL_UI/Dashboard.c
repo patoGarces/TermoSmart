@@ -1,8 +1,5 @@
 #include "Dashboard.h"
 
-#define TEMP_COLOR_OFF  lv_color_hex(0x1565C0)
-#define TEMP_COLOR_ON   lv_color_hex(0xC62828)
-
 /**********************
  *      TYPEDEFS
  **********************/
@@ -42,6 +39,7 @@ static const lv_font_t * font_temp;
 static lv_timer_t * meter2_timer;
 
 lv_obj_t * tempCard;
+lv_obj_t * heatingIcon;
 lv_obj_t * tempValue;
 lv_obj_t * tempDecimalsLabel;
 
@@ -61,8 +59,8 @@ void updateTabColor(bool heating)
     lv_obj_t * tab_bar = lv_obj_get_child(tv, 0);
 
     lv_color_t color = heating
-        ? TEMP_COLOR_ON            // rojo calentando
-        : TEMP_COLOR_OFF;          // azul apagado
+        ? TEMP_COLOR_HOT
+        : TEMP_COLOR_COLD;
 
     lv_obj_set_style_bg_color(
       tab_bar,
@@ -169,7 +167,7 @@ static void Onboard_create(lv_obj_t * parent) {
     tempCard = lv_obj_create(parent);
     lv_obj_set_size(tempCard, 140, 100);
 
-    lv_obj_set_style_bg_color(tempCard, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(tempCard, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(tempCard, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(tempCard, 2, 0);
     lv_obj_set_style_radius(tempCard, 8, 0);
@@ -178,9 +176,17 @@ static void Onboard_create(lv_obj_t * parent) {
 
     lv_obj_clear_flag(tempCard, LV_OBJ_FLAG_SCROLLABLE);
 
+    heatingIcon = lv_label_create(tempCard);
+    lv_label_set_text(heatingIcon, LV_SYMBOL_CHARGE);
+    lv_obj_add_style(heatingIcon, &style_title, 0);
+    lv_obj_set_style_text_color(heatingIcon, lv_color_white(), 0);
+    lv_obj_set_style_translate_x(heatingIcon, 10, 0);
+    lv_obj_add_flag(heatingIcon, LV_OBJ_FLAG_HIDDEN);       // arranca oculto
+
     tempValue = lv_label_create(tempCard);
     lv_obj_set_width(tempValue, 70);
     lv_label_set_text(tempValue, "--");
+
     lv_obj_add_style(tempValue, &style_temp, 0);
     lv_obj_set_style_text_align(tempValue, LV_TEXT_ALIGN_RIGHT, 0);
 
@@ -207,7 +213,6 @@ static void Onboard_create(lv_obj_t * parent) {
 
     lv_style_init(&style_status_normal);
     lv_style_set_text_color(&style_status_normal, lv_color_white());
-
 
     wifiLabel = lv_label_create(parent);
     lv_label_set_text(wifiLabel, "WiFi: --");
@@ -270,6 +275,10 @@ void updateDashboardWifiStatus(bool connected) {
     lv_obj_remove_style(wifiLabel, &style_status_error, 0);
 
     lv_obj_add_style(wifiLabel, connected ? &style_status_ok : &style_status_error, 0);
+
+    if (!connected) {
+      lv_obj_set_style_bg_color(tempCard, lv_color_black(), 0);
+    }
 }
 
 void updateDashboardMqttStatus(bool connected) {
@@ -278,12 +287,22 @@ void updateDashboardMqttStatus(bool connected) {
     lv_obj_remove_style(mqttLabel, &style_status_ok, 0);
     lv_obj_remove_style(mqttLabel, &style_status_error, 0);
 
-    lv_obj_add_style(mqttLabel,
-        connected ? &style_status_ok : &style_status_error, 0);
+    lv_obj_add_style(mqttLabel, connected ? &style_status_ok : &style_status_error, 0);
+
+    if (!connected) {
+      lv_obj_set_style_bg_color(tempCard, lv_color_black(), 0);
+    }
 }
 
 void updateDashboardRelayStatus(bool on) {
-    lv_color_t background = on ? TEMP_COLOR_ON : TEMP_COLOR_OFF;
-    lv_obj_set_style_bg_color(tempCard, background, 0);
-    updateTabColor(on);
+    // updateTabColor(on);
+
+    if (on)
+      lv_obj_clear_flag(heatingIcon, LV_OBJ_FLAG_HIDDEN);
+    else
+      lv_obj_add_flag(heatingIcon, LV_OBJ_FLAG_HIDDEN);
+}
+
+void updateDashboardTempColor(lv_color_t newColor) {
+  lv_obj_set_style_bg_color(tempCard, newColor, 0);
 }

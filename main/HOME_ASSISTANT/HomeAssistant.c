@@ -116,11 +116,11 @@ static void homeAssistantUpdate(void *pvParameters) {
     }
 }
 
-void homeAssistantInit(QueueHandle_t updateTermoStateQueue) {
+void homeAssistantInit(QueueHandle_t updateTermoStateQueue, QueueHandle_t mqttConnectionState) {
 
     actualTermoStateQueue = updateTermoStateQueue;
     static mqtt_context_t mqttContext;
-    mqttContext.connectionQueue = xQueueCreate(1, sizeof(bool));
+    mqttContext.connectionQueue = mqttConnectionState;
     mqttContext.mqttMessageQueue = xQueueCreate(10, sizeof(mqtt_message_t));
 
     mqttInit(MQTT_ADDRESS, &mqttContext);

@@ -31,9 +31,49 @@ static uint8_t RGB_Data[192][3] ={
 
 static led_strip_handle_t led_strip;
 
+static rgb_t interpolate(rgb_t c1, rgb_t c2, float t) {
+    rgb_t result;
 
-void RGB_Init(void)
-{
+    result.r = c1.r + (c2.r - c1.r) * t;
+    result.g = c1.g + (c2.g - c1.g) * t;
+    result.b = c1.b + (c2.b - c1.b) * t;
+
+    return result;
+}
+
+rgb_t convertTempPercentToRgb(uint8_t percent) {
+    rgb_t color;
+
+    if (percent <= 25) {
+        color = interpolate(
+            (rgb_t){0, 0, 255},      // azul
+            (rgb_t){0, 255, 255},    // celeste
+            percent / 25.0f);
+    }
+    else if (percent <= 50) {
+        color = interpolate(
+            (rgb_t){0, 255, 255},    // celeste
+            (rgb_t){255, 255, 0},    // amarillo
+            (percent - 25) / 25.0f);
+    }
+    else if (percent <= 75) {
+        color = interpolate(
+            (rgb_t){255, 255, 0},    // amarillo
+            (rgb_t){255, 128, 0},    // naranja
+            (percent - 50) / 25.0f);
+    }
+    else {
+        color = interpolate(
+            (rgb_t){255, 128, 0},    // naranja
+            (rgb_t){255, 0, 0},      // rojo
+            (percent - 75) / 25.0f);
+    }
+
+    return color;
+    // Set_RGB(color.g, color.r, color.b);
+}
+
+void initRgb(void) {
     /* LED strip initialization with the GPIO and pixels number*/
     led_strip_config_t strip_config = {
         .strip_gpio_num = BLINK_GPIO,
@@ -48,10 +88,11 @@ void RGB_Init(void)
     /* Set all LED off to clear all pixels */
     led_strip_clear(led_strip);
 }
-void Set_RGB( uint8_t red_val, uint8_t green_val, uint8_t blue_val)
-{
+
+void setRgb( uint8_t red_val, uint8_t green_val, uint8_t blue_val) {
     /* Set the LED pixel using RGB from 0 (0%) to 255 (100%) for each color */
-    led_strip_set_pixel(led_strip, 0, red_val, green_val, blue_val);
+    // led_strip_set_pixel(led_strip, 0, red_val, green_val, blue_val);
+    led_strip_set_pixel(led_strip, 0, green_val, red_val, blue_val);    // switch rgb to grb
     /* Refresh the strip to send data */
     led_strip_refresh(led_strip);
 }
@@ -61,7 +102,7 @@ void _RGB_Example(void *arg)
     static uint8_t i = 0;
     while(1)
     {
-        Set_RGB(RGB_Data[i][0]*3,RGB_Data[i][1]*3,RGB_Data[i][2]*3);
+        setRgb(RGB_Data[i][0]*3,RGB_Data[i][1]*3,RGB_Data[i][2]*3);
         i++;
         if(i >= 192) i = 0;
         vTaskDelay(20 / portTICK_PERIOD_MS);
